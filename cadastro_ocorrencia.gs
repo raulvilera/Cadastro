@@ -1,114 +1,190 @@
+// FRONTEND: Conecta o formulário HTML ao backend usando a URL do Apps Script
+
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxJpT_BuyMWj8zyRcKRM4C1e1XTLVCVvhQLb7jut-a3k4bc1tBHCXcCEHaUSp55VwFT/exec';
+
+document.getElementById('ocorrenciaForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+
+  const form = e.target;
+
+  // Coleta os dados do formulário
+  const formData = {
+    nomeAluno: form.nomeAluno.value,
+    anoSerie: form.anoSerie.value,
+    professor: form.professor.value,
+    ra: form.ra.value,
+    disciplina: form.disciplina.value,
+    descricaoOcorrencia: form.descricaoOcorrencia.value,
+    numeroWhatsApp: form.numeroWhatsApp.value,
+    dataRegistro: form.dataRegistro.value,
+    dataRetorno: form.dataRetorno ? form.dataRetorno.value : '',
+    descricao: form.descricao.value,
+  };
+
+  // Envia os dados para o backend
+  fetch(WEB_APP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(formData),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.success) {
+        alert('Cadastro realizado com sucesso!');
+      } else {
+        alert('Erro ao cadastrar: ' + data.error);
+      }
+    })
+    .catch((error) => {
+      console.error('Erro:', error);
+      alert('Erro ao enviar os dados. Verifique sua conexão com a internet.');
+    });
+});
+
+document.getElementById('fotoInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      document.getElementById('fotoAluno').src = e.target.result;
+      document.getElementById('fotoAluno').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+document.getElementById('descricaoOcorrencia').addEventListener('change', function (e) {
+  const dataRetornoGroup = document.getElementById('dataRetornoGroup');
+  if (e.target.value === 'SUSPENSÃO') {
+    dataRetornoGroup.style.display = 'flex';
+  } else {
+    dataRetornoGroup.style.display = 'none';
+  }
+});
+
+// BACKEND: Código para o Google Apps Script
+
 function doGet() {
-  var htmlOutput = HtmlService.createHtmlOutputFromFile('Index')
-      .setTitle('2024_Cadastro_de_Ocorrencias');
-  return htmlOutput;
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('2024_Cadastro_de_Ocorrencias');
 }
 
-function cadastrarOcorrenciaEEnviarDocumento() {
-  var ss = SpreadsheetApp.openById('1u7qMsMHkZT47OZdar5qvshQDRA8XJrLgDjAZVOViAio');
-  var ssCadastro = ss.getSheetByName('cadastro');
-  if (!ssCadastro) {
-    SpreadsheetApp.getUi().alert("Planilha 'cadastro' não encontrada.");
-    return;
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+
+    const nomeAluno = data.nomeAluno;
+    const anoSerie = data.anoSerie;
+    const professor = data.professor;
+    const ra = data.ra;
+    const disciplina = data.disciplina;
+    const descricaoOcorrencia = data.descricaoOcorrencia;
+    const numeroWhatsApp = data.numeroWhatsApp;
+    const dataRegistro = data.dataRegistro;
+    const dataRetorno = data.dataRetorno || '';
+    const descricao = data.descricao;
+
+    cadastrarOcorrenciaEEnviarDocumento(
+      nomeAluno,
+      anoSerie,
+      professor,
+      ra,
+      disciplina,
+      descricaoOcorrencia,
+      numeroWhatsApp,
+      dataRegistro,
+      dataRetorno,
+      descricao
+    );
+
+    return ContentService.createTextOutput(
+      JSON.stringify({ success: true })
+    ).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(
+      JSON.stringify({ success: false, error: error.message })
+    ).setMimeType(ContentService.MimeType.JSON);
   }
+}
 
-  var nomeAluno = ssCadastro.getRange('C3').getValue();
-  var serie = ssCadastro.getRange('C5').getValue();
-  var professor = ssCadastro.getRange('C7').getValue();
-  var ra = ssCadastro.getRange('C9').getValue();
-  var descricao = ssCadastro.getRange('C16').getValue();
-  var disciplina = ssCadastro.getRange('C11').getValue();
-  var dataAtual = new Date();
+function cadastrarOcorrenciaEEnviarDocumento(nomeAluno, serie, professor, ra, disciplina, descricaoOcorrencia, numeroWhatsApp, dataRegistro, dataRetorno, descricao) {
+  const ss = SpreadsheetApp.openById('1u7qMsMHkZT47OZdar5qvshQDRA8XJrLgDjAZVOViAio');
+  const ssCadastro = ss.getSheetByName('cadastro');
+  const ssBancoDeAlunos = ss.getSheetByName('BANCODEALUNOS');
 
-  var ssBancoDeAlunos = ss.getSheetByName('BANCODEALUNOS');
-  if (!ssBancoDeAlunos) {
-    SpreadsheetApp.getUi().alert("Planilha 'BANCODEALUNOS' não encontrada.");
-    return;
+  if (!ssCadastro || !ssBancoDeAlunos) {
+    throw new Error("Planilhas 'cadastro' ou 'BANCODEALUNOS' não encontradas.");
   }
 
   ssBancoDeAlunos.insertRowBefore(3);
-  var linhaInsercao = 3;
+  const linhaInsercao = 3;
 
-  ssBancoDeAlunos.getRange(linhaInsercao, 1, 1, 9).setValues([[nomeAluno, serie, professor, ra, disciplina, Utilities.formatDate(dataAtual, "GMT-03:00", "dd/MM/yyyy HH:mm:ss"), descricao, '', '']]);
+  ssBancoDeAlunos.getRange(linhaInsercao, 1, 1, 9).setValues([
+    [
+      nomeAluno,
+      serie,
+      professor,
+      ra,
+      disciplina,
+      Utilities.formatDate(new Date(dataRegistro), "GMT-03:00", "dd/MM/yyyy"),
+      descricao,
+      '',
+      descricaoOcorrencia === 'SUSPENSÃO'
+        ? Utilities.formatDate(new Date(dataRetorno), "GMT-03:00", "dd/MM/yyyy")
+        : ''
+    ]
+  ]);
 
-  var linhaFormatacao = ssBancoDeAlunos.getLastRow() % 2 === 0 ? 4 : 3;
-  var rangeFormat = ssBancoDeAlunos.getRange(linhaFormatacao, 1, 1, 9);
-  var rangeNewRow = ssBancoDeAlunos.getRange(linhaInsercao, 1, 1, 9);
-  rangeFormat.copyTo(rangeNewRow, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  const pdfUrl = criarDocumento(
+    nomeAluno,
+    serie,
+    professor,
+    ra,
+    disciplina,
+    descricao,
+    new Date(dataRegistro),
+    descricaoOcorrencia,
+    descricaoOcorrencia === 'OCORRÊNCIA',
+    descricaoOcorrencia === 'SUSPENSÃO',
+    descricaoOcorrencia === 'SUSPENSÃO' ? new Date(dataRetorno) : null
+  );
 
-  var descricaoOcorrencia = ssCadastro.getRange('F11').getValue();
-  var ocorrenciaSelecionada = descricaoOcorrencia === "OCORRÊNCIA";
-  var suspensaoSelecionada = descricaoOcorrencia === "SUSPENSÃO";
-  var dataRetornoSuspensao = ssCadastro.getRange('F13').getValue();
-
-  if (typeof dataRetornoSuspensao === 'string' && dataRetornoSuspensao.trim() !== '') {
-    var partesData = dataRetornoSuspensao.split('/');
-    if (partesData.length === 3) {
-      var ano = parseInt(partesData[2], 10);
-      var mes = parseInt(partesData[1], 10) - 1;
-      var dia = parseInt(partesData[0], 10);
-      dataRetornoSuspensao = new Date(ano, mes, dia);
-    } else {
-      SpreadsheetApp.getUi().alert("Formato de data de retorno inválido.");
-      return;
-    }
-  }
-
-  var pdfUrl = criarDocumento(nomeAluno, serie, professor, ra, disciplina, descricao, dataAtual, descricaoOcorrencia, ocorrenciaSelecionada, suspensaoSelecionada, dataRetornoSuspensao);
   ssBancoDeAlunos.getRange(linhaInsercao, 8).setValue(pdfUrl);
-  if (suspensaoSelecionada) {
-    ssBancoDeAlunos.getRange(linhaInsercao, 9).setValue(Utilities.formatDate(dataRetornoSuspensao, "GMT-03:00", "dd/MM/yyyy"));
-  }
 
-  // Obter o número de telefone do responsável pelo aluno (assumindo que o número está na célula G7)
-  var numeroWhatsApp = ssCadastro.getRange('G7').getValue();
-  Logger.log('Número WhatsApp antes de ajustes: ' + numeroWhatsApp);
   if (numeroWhatsApp) {
-    numeroWhatsApp = String(numeroWhatsApp).replace(/\s+/g, '');
-    // Adicionar "+" ao número se não estiver presente
-    if (numeroWhatsApp.charAt(0) !== '+') {
-      numeroWhatsApp = '+' + numeroWhatsApp;
-    }
-    Logger.log('Número WhatsApp após ajustes: ' + numeroWhatsApp);
-
-    var mensagem = "Documento de " + (ocorrenciaSelecionada ? "ocorrência" : "suspensão") + " para " + nomeAluno;
-    enviarMensagemWhatsApp(numeroWhatsApp, mensagem, pdfUrl);
-  } else {
-    Logger.log('Número WhatsApp não encontrado na célula G7.');
+    enviarMensagemWhatsApp(
+      numeroWhatsApp,
+      `Documento de ${descricaoOcorrencia} gerado para ${nomeAluno}.`,
+      pdfUrl
+    );
   }
-
-  SpreadsheetApp.getUi().alert("CADASTRO REALIZADO.");
 }
 
 function criarDocumento(nomeAluno, serie, professor, ra, disciplina, descricao, data, descricaoOcorrencia, ocorrenciaSelecionada, suspensaoSelecionada, dataRetornoSuspensao) {
-  var pastaDestino = DriveApp.getFolderById("19JydmuXDW3ZA8ckj9N7tCjlDnEUozYxv");
-  var idTemplate = '1dHwyN8mlb_4bltEksnoc3Yx5wUcDNgAkzqsluLPYeP8';
-  var nomeArquivo = nomeAluno + ' - ' + (suspensaoSelecionada ? 'Suspensão' : 'Ocorrência');
+  const pastaDestino = DriveApp.getFolderById("19JydmuXDW3ZA8ckj9N7tCjlDnEUozYxv");
+  const idTemplate = '1dHwyN8mlb_4bltEksnoc3Yx5wUcDNgAkzqsluLPYeP8';
+  const nomeArquivo = `${nomeAluno} - ${suspensaoSelecionada ? 'Suspensão' : 'Ocorrência'}`;
 
-  var modelo = DriveApp.getFileById(idTemplate);
-  var novoArquivo = modelo.makeCopy(nomeArquivo, pastaDestino);
-  var novoDoc = DocumentApp.openById(novoArquivo.getId());
-  var docCorpo = novoDoc.getBody();
+  const modelo = DriveApp.getFileById(idTemplate);
+  const novoArquivo = modelo.makeCopy(nomeArquivo, pastaDestino);
+  const novoDoc = DocumentApp.openById(novoArquivo.getId());
+  const docCorpo = novoDoc.getBody();
 
-  var textoDocumento = docCorpo.getText()
-    .replace("{NOME}", nomeAluno)
-    .replace("{SÉRIE}", serie)
-    .replace("{PROFESSOR}", professor)
-    .replace("{RA}", ra)
-    .replace("{DISCIPLINA}", disciplina)
-    .replace("{DATA}", Utilities.formatDate(data, "GMT-03:00", "dd/MM/yyyy HH:mm:ss"))
-    .replace("{OCORRÊNCIA}", ocorrenciaSelecionada ? "OCORRÊNCIA" : "")
-    .replace("{SUSPENSÃO}", suspensaoSelecionada ? "SUSPENSÃO" : "")
-    .replace("{DESCRIÇÃO}", descricao)
-    .replace("{DATA_RETORNO_SUSPENSAO}", suspensaoSelecionada ? Utilities.formatDate(dataRetornoSuspensao, "GMT-03:00", "dd/MM/yyyy") : "")
-    .replace("{RETORNO}", suspensaoSelecionada ? "O aluno deverá retornar em " + Utilities.formatDate(dataRetornoSuspensao, "GMT-03:00", "dd/MM/yyyy") : "");
+  docCorpo.replaceText("{NOME}", nomeAluno);
+  docCorpo.replaceText("{SÉRIE}", serie);
+  docCorpo.replaceText("{PROFESSOR}", professor);
+  docCorpo.replaceText("{RA}", ra);
+  docCorpo.replaceText("{DISCIPLINA}", disciplina);
+  docCorpo.replaceText("{DATA}", Utilities.formatDate(data, "GMT-03:00", "dd/MM/yyyy HH:mm:ss"));
+  docCorpo.replaceText("{DESCRIÇÃO}", descricao);
+  if (suspensaoSelecionada) {
+    docCorpo.replaceText("{DATA_RETORNO_SUSPENSAO}", Utilities.formatDate(dataRetornoSuspensao, "GMT-03:00", "dd/MM/yyyy"));
+  }
 
-  docCorpo.setText(textoDocumento);
   novoDoc.saveAndClose();
-
-  var pdfBlob = novoArquivo.getAs(MimeType.PDF);
-  var pdfFile = pastaDestino.createFile(pdfBlob);
-  var pdfUrl = pdfFile.getUrl();
+  const pdfBlob = novoArquivo.getAs(MimeType.PDF);
+  const pdfFile = pastaDestino.createFile(pdfBlob);
+  const pdfUrl = pdfFile.getUrl();
 
   DriveApp.getFileById(novoArquivo.getId()).setTrashed(true);
 
@@ -116,27 +192,24 @@ function criarDocumento(nomeAluno, serie, professor, ra, disciplina, descricao, 
 }
 
 function enviarMensagemWhatsApp(numero, mensagem, urlPdf) {
-  var assinatura = "\n\nEnviado pela E.E. LYDIA KITZ MOREIRA";
+  const accountSid = 'YOUR_ACCOUNT_SID';
+  const authToken = 'YOUR_AUTH_TOKEN';
+  const fromNumber = 'whatsapp:+14155238886';
 
-  var accountSid = 'AC32ec5095581b482f30dd3bd5398b3847';  // Substitua pelo seu Account SID
-  var authToken = '3f61c2dd219df8824544c80688298523';   // Substitua pelo seu Auth Token
-  var fromNumber = 'whatsapp:+14155238886'; // Substitua pelo seu número WhatsApp Twilio
-
-  var payload = {
-    'From': fromNumber,
-    'To': 'whatsapp:' + numero,
-    'Body': mensagem + ' ' + urlPdf + assinatura
+  const payload = {
+    From: fromNumber,
+    To: `whatsapp:${numero}`,
+    Body: `${mensagem}\n${urlPdf}`
   };
 
-  var options = {
-    'method': 'post',
-    'headers': {
-      'Authorization': 'Basic ' + Utilities.base64Encode(accountSid + ':' + authToken),
+  const options = {
+    method: 'post',
+    headers: {
+      Authorization: `Basic ${Utilities.base64Encode(accountSid + ':' + authToken)}`,
       'Content-Type': 'application/x-www-form-urlencoded'
     },
-    'payload': payload
+    payload
   };
 
-  var response = UrlFetchApp.fetch('https://api.twilio.com/2010-04-01/Accounts/' + accountSid + '/Messages.json', options);
-  Logger.log('Resposta da Twilio: ' + response.getContentText());
+  UrlFetchApp.fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, options);
 }
