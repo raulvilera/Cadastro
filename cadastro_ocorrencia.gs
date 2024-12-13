@@ -322,136 +322,55 @@
     </div>
   </div>
 
-  <script>
-    // URL do seu Web App do Apps Script:
-    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw6MCdT2ZE3rQBewAv7dkGfvTIwe7pLTR3mWnTOaEv5fMkDb_uKD3125wLsgg6WBdyO/exec';
+<script>
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwNMYOusjhGLs5EUCNZHphL7-ppOKsNExxp-cDWVOVvq56ye_hn8OagtlX6QpXoiavS/exec';
 
-    document.getElementById('descricaoOcorrencia').addEventListener('change', function() {
-      var dataRetornoGroup = document.getElementById('dataRetornoGroup');
-      if (this.value === 'SUSPENSÃO') {
-        dataRetornoGroup.style.display = 'flex';
+  document.getElementById('ocorrenciaForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const form = document.getElementById('ocorrenciaForm');
+    const formData = {
+      nomeAluno: form.nomeAluno.value,
+      anoSerie: form.anoSerie.value,
+      professor: form.professor.value,
+      ra: form.ra.value,
+      disciplina: form.disciplina.value,
+      descricao: form.descricao.value,
+      descricaoOcorrencia: form.descricaoOcorrencia.value,
+      dataRegistro: form.dataRegistro.value,
+      dataRetorno: form.dataRetorno.value,
+      numeroWhatsApp: form.numeroWhatsApp.value,
+    };
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(formData)
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Erro no servidor: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.success) {
+        alert(data.message);
+        if (data.pdfUrl) {
+          window.open(data.pdfUrl, '_blank');
+        }
       } else {
-        dataRetornoGroup.style.display = 'none';
+        alert(`Erro: ${data.message}`);
       }
+    })
+    .catch(error => {
+      console.error(error);
+      alert(`Erro ao enviar dados: ${error.message}`);
     });
+  });
+</script>
 
-    document.getElementById('fotoInput').addEventListener('change', function() {
-      var file = this.files[0];
-      if (file) {
-        var reader = new FileReader();
-        reader.onload = function(evt) {
-          var fotoAluno = document.getElementById('fotoAluno');
-          fotoAluno.src = evt.target.result;
-          fotoAluno.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-
-    document.getElementById('downloadDocumentoButton').addEventListener('click', function() {
-      var pdfUrl = this.getAttribute('data-pdf-url');
-      if (pdfUrl) {
-        window.open(pdfUrl, '_blank');
-      } else {
-        alert('Nenhum documento PDF disponível para download.');
-      }
-    });
-
-    document.getElementById('limparButton').addEventListener('click', function() {
-      var pdfContainer = document.getElementById('pdfContainer');
-      var pdfFrame = document.getElementById('pdfFrame');
-      var downloadDocumentoButton = document.getElementById('downloadDocumentoButton');
-      var limparButton = document.getElementById('limparButton');
-
-      document.getElementById('ocorrenciaForm').reset();
-      document.getElementById('fotoAluno').style.display = 'none';
-
-      downloadDocumentoButton.disabled = true;
-      downloadDocumentoButton.removeAttribute('data-pdf-url');
-      limparButton.disabled = true;
-
-      pdfFrame.src = "";
-      pdfContainer.style.display = 'none';
-
-      alert('Formulário limpo e PDF removido.');
-    });
-
-    document.getElementById('ocorrenciaForm').addEventListener('submit', function(e) {
-      e.preventDefault();
-
-      var form = document.getElementById('ocorrenciaForm');
-      var formData = {
-        professor: form.professor.value,
-        nomeAluno: form.nomeAluno.value,
-        anoSerie: form.anoSerie.value,
-        ra: form.ra.value,
-        disciplina: form.disciplina.value,
-        descricao: form.descricao.value,
-        descricaoOcorrencia: form.descricaoOcorrencia.value,
-        dataRegistro: form.dataRegistro.value,
-        dataRetorno: form.dataRetorno.value,
-        numeroWhatsApp: form.numeroWhatsApp.value,
-        fotoAluno: ""
-      };
-
-      var fotoInput = document.getElementById('fotoInput');
-      if (fotoInput.files.length > 0) {
-        var reader = new FileReader();
-        reader.onload = function(evt) {
-          formData.fotoAluno = evt.target.result;
-          enviarDados(formData);
-        };
-        reader.readAsDataURL(fotoInput.files[0]);
-      } else {
-        enviarDados(formData);
-      }
-    });
-
-    function enviarDados(formData) {
-      fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
-      .then(response => response.json())
-      .then(onSuccess)
-      .catch(onFailure);
-    }
-
-    function onSuccess(response) {
-      if (!response.success) {
-        alert('Falha: ' + response.message);
-        return;
-      }
-
-      alert(response.message);
-      document.getElementById('ocorrenciaForm').reset();
-      document.getElementById('fotoAluno').style.display = 'none';
-
-      if (response.pdfUrl) {
-        document.getElementById('downloadDocumentoButton').disabled = false;
-        document.getElementById('downloadDocumentoButton').setAttribute('data-pdf-url', response.pdfUrl);
-        document.getElementById('limparButton').disabled = false;
-
-        var pdfContainer = document.getElementById('pdfContainer');
-        var pdfFrame = document.getElementById('pdfFrame');
-        var downloadButton = document.getElementById('downloadPdfButton');
-
-        pdfFrame.src = response.pdfUrl;
-        downloadButton.onclick = function() {
-          window.open(response.pdfUrl, '_blank');
-        };
-
-        pdfContainer.style.display = 'flex';
-      } else {
-        document.getElementById('downloadDocumentoButton').disabled = true;
-        document.getElementById('limparButton').disabled = true;
-      }
-    }
-
-    function onFailure(error) {
-      alert('Erro: ' + error.message);
-    }
-  </script>
 </body>
 </html>
